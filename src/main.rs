@@ -1,19 +1,18 @@
 use broadcaster::BroadcasterMangement;
 use futures_util::sink::SinkExt;
-use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom, Write};
-use std::path::Path;
+
+use std::io::{Read};
+
 use std::process::Stdio;
 
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::*,
+    io::{AsyncReadExt},
     process::ChildStdout,
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
-use tokio_tungstenite::tungstenite::{handshake::server::*, http::Uri};
+
 
 mod broadcaster;
 mod packer;
@@ -172,11 +171,11 @@ impl MP4Processer<Mp4HeaderProcesser> {
     ) -> Result<MP4Processer<Mp4DataProcesser>, &'static str> {
         let event = self.state.process(reader, &mut self.buffer).await?;
         tx.send(event.0);
-        return Ok(MP4Processer {
+        Ok(MP4Processer {
             header_len: event.1,
             buffer: BytesMut::new(),
             state: Mp4DataProcesser(Mp4DataProcessState::MoofLen),
-        });
+        })
 
         // if let Ok(event) = self.state.process(reader, &mut self.buffer).await {
         //     tx.send(event);
@@ -208,7 +207,7 @@ impl MP4Processer<Mp4DataProcesser> {
             return Ok(());
         }
 
-        return Err(());
+        Err(())
     }
 }
 
@@ -221,7 +220,7 @@ impl Mp4HeaderProcesser {
     async fn process(
         &mut self,
         reader: &mut ChildStdout,
-        buffer: &mut BytesMut,
+        _buffer: &mut BytesMut,
     ) -> Result<(FFMpegEvent, usize), &'static str> {
         let mut header = BytesMut::with_capacity(2048);
         let mut buf_temp = BytesMut::new();
@@ -233,7 +232,7 @@ impl Mp4HeaderProcesser {
 
         header.put_u32(ftype_len);
         buf_temp.resize((ftype_len - 4) as usize, 0);
-        let ftype_box = reader.read_exact(&mut buf_temp).await.unwrap();
+        let _ftype_box = reader.read_exact(&mut buf_temp).await.unwrap();
         header.extend_from_slice(&buf_temp);
 
         let moov_len = reader.read_u32().await.unwrap();
@@ -242,11 +241,11 @@ impl Mp4HeaderProcesser {
         }
         header.put_u32(moov_len);
         buf_temp.resize((moov_len - 4) as usize, 0);
-        let moov_box = reader.read_exact(&mut buf_temp).await.unwrap();
+        let _moov_box = reader.read_exact(&mut buf_temp).await.unwrap();
         header.put(buf_temp);
 
         let len = header.len();
-        return Ok((FFMpegEvent::Header(header.freeze()), len));
+        Ok((FFMpegEvent::Header(header.freeze()), len))
     }
 }
 enum Mp4DataProcessState {
@@ -320,10 +319,10 @@ impl Mp4DataProcesser {
             return Ok(FFMpegEvent::Data(data.freeze()));
         }
 
-        return Ok(FFMpegEvent::NoOP);
+        Ok(FFMpegEvent::NoOP)
     }
 
-    fn change_tfhd_base_data_offset(buf: &mut BytesMut, header_len: usize) {
+    fn change_tfhd_base_data_offset(buf: &mut BytesMut, _header_len: usize) {
         let mut ptr: &mut [u8] = &mut buf[4..];
 
         while ptr.len() > 8 {
